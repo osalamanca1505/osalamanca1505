@@ -1,0 +1,411 @@
+Entiendo perfectamente lo que buscas: un dashboard web interactivo y completo para analizar las ventas de Swisslub. Sin embargo, hay algo importante que debo aclararte antes de empezar.
+
+
+⚠️ No he recibido el archivo de Excel
+
+En esta conversación no aparece ningún texto extraído de un archivo (no veo ningún bloque "Extracted text from file:"), por lo que no tengo acceso a los datos reales de tu archivo con las 66.812 filas. Sin los datos no puedo:
+
+
+
+Conocer los nombres exactos de las columnas.
+
+Saber qué regiones, líneas (HDMO, PCMO, MCO, Industrial, etc.) y categorías contiene.
+
+Cargar los 66.812 registros reales en los gráficos.
+
+
+
+💡 Nota adicional: mencionas "ventas de los videojuegos" en un par de líneas, pero por el contexto (Swisslub, HDMO, PCMO, lubricantes) asumo que fue un error de copiado y que en realidad te refieres a líneas de lubricantes/productos. Lo he tomado así.
+
+
+
+
+✅ Lo que sí puedo hacer ahora mismo
+
+Te voy a entregar un dashboard 100% funcional y responsive como plantilla robusta, diseñado específicamente para la estructura típica de datos de Swisslub. Solo tendrás que conectar tu archivo (te explico cómo abajo, es muy sencillo). El dashboard incluye:
+
+
+
+📊 Diagrama de barras (ventas por línea/región)
+
+📈 Diagrama de áreas (evolución temporal)
+
+🥧 Diagrama de torta (participación por categoría)
+
+🔵 Gráfico de dispersión (unidades vs. pesos)
+
+📋 Tabla de datos con búsqueda y paginación (maneja las 66.812 filas)
+
+🎚️ Segmentadores (filtros) por Región, Línea, Categoría, etc.
+
+🖱️ Tooltips interactivos al pasar el mouse
+
+📱 Diseño responsive
+
+📝 Apartados de lectura/interpretación de cada gráfico
+
+
+Para que puedas cargar tu propio Excel directamente en el navegador, he incluido un lector de archivos con la librería SheetJS (soporta .xlsx).
+
+
+
+html
+ Copy code
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard Ventas - Swisslub</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --primary:#0b5394; --accent:#e69138; --bg:#f4f6f9; --card:#ffffff;
+    --text:#2c3e50; --muted:#7f8c8d; --border:#e1e5ea;
+    --green:#27ae60; --red:#e74c3c;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;font-family:'Segoe UI',Tahoma,sans-serif;}
+  body{background:var(--bg);color:var(--text);line-height:1.5;}
+  header{background:linear-gradient(135deg,var(--primary),#073763);color:#fff;padding:22px 20px;text-align:center;}
+  header h1{font-size:clamp(1.3rem,3vw,2rem);}
+  header p{opacity:.85;font-size:.9rem;margin-top:4px;}
+  .container{max-width:1400px;margin:0 auto;padding:16px;}
+
+  /* Carga de archivo */
+  .upload{background:var(--card);border:2px dashed var(--primary);border-radius:12px;
+    padding:18px;text-align:center;margin-bottom:18px;}
+  .upload label{display:inline-block;background:var(--primary);color:#fff;padding:10px 20px;
+    border-radius:8px;cursor:pointer;font-weight:600;}
+  .upload input{display:none;}
+  .upload small{display:block;margin-top:8px;color:var(--muted);}
+
+  /* Segmentadores */
+  .filters{background:var(--card);border-radius:12px;padding:16px;margin-bottom:18px;
+    display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;
+    box-shadow:0 2px 10px rgba(0,0,0,.05);}
+  .filters .field{display:flex;flex-direction:column;font-size:.8rem;}
+  .filters label{font-weight:600;margin-bottom:4px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;}
+  .filters select{padding:8px;border:1px solid var(--border);border-radius:8px;font-size:.9rem;background:#fff;}
+  .btn-reset{align-self:end;background:var(--accent);color:#fff;border:none;border-radius:8px;
+    padding:9px;cursor:pointer;font-weight:600;}
+
+  /* KPIs */
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-bottom:18px;}
+  .kpi{background:var(--card);border-radius:12px;padding:18px;box-shadow:0 2px 10px rgba(0,0,0,.05);
+    border-left:5px solid var(--primary);}
+  .kpi h3{font-size:.75rem;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;}
+  .kpi .val{font-size:1.6rem;font-weight:700;margin-top:6px;color:var(--primary);}
+
+  /* Grid de gráficos */
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:18px;}
+  .card{background:var(--card);border-radius:12px;padding:18px;box-shadow:0 2px 10px rgba(0,0,0,.05);}
+  .card h2{font-size:1rem;margin-bottom:10px;color:var(--primary);border-bottom:2px solid var(--border);padding-bottom:8px;}
+  .chart-wrap{position:relative;height:300px;}
+  .insight{margin-top:12px;font-size:.82rem;background:#f0f6fc;border-left:4px solid var(--accent);
+    padding:10px;border-radius:6px;color:#34495e;}
+
+  /* Tabla */
+  .table-card{grid-column:1/-1;}
+  .table-controls{display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:10px;}
+  .table-controls input{padding:8px;border:1px solid var(--border);border-radius:8px;min-width:200px;}
+  .table-scroll{overflow-x:auto;max-height:420px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;}
+  table{width:100%;border-collapse:collapse;font-size:.82rem;}
+  th{background:var(--primary);color:#fff;padding:10px;position:sticky;top:0;text-align:left;white-space:nowrap;}
+  td{padding:8px 10px;border-bottom:1px solid var(--border);}
+  tr:nth-child(even){background:#f9fbfd;}
+  .pagination{display:flex;justify-content:center;align-items:center;gap:10px;margin-top:12px;}
+  .pagination button{padding:6px 12px;border:1px solid var(--border);background:#fff;border-radius:6px;cursor:pointer;}
+  .pagination button:disabled{opacity:.4;cursor:not-allowed;}
+
+  .empty{text-align:center;padding:40px;color:var(--muted);}
+  footer{text-align:center;padding:20px;color:var(--muted);font-size:.8rem;}
+</style>
+</head>
+<body>
+<header>
+  <h1>📊 Dashboard de Ventas — Swisslub</h1>
+  <p>Análisis interactivo por región, línea y categoría (HDMO, PCMO, MCO, Industrial…)</p>
+</header>
+
+<div class="container">
+
+  <!-- CARGA DE ARCHIVO -->
+  <div class="upload">
+    <label for="fileInput">📁 Cargar archivo Excel (.xlsx)</label>
+    <input type="file" id="fileInput" accept=".xlsx,.xls,.csv">
+    <small>Selecciona tu archivo con las 66.812 filas. Los gráficos y filtros se generarán automáticamente.</small>
+  </div>
+
+  <!-- SEGMENTADORES -->
+  <div class="filters" id="filters">
+    <div class="field"><label>Región</label><select id="fRegion"><option value="">Todas</option></select></div>
+    <div class="field"><label>Línea / Categoría</label><select id="fLinea"><option value="">Todas</option></select></div>
+    <div class="field"><label>Categoría 2</label><select id="fCat2"><option value="">Todas</option></select></div>
+    <div class="field"><label>Métrica</label>
+      <select id="fMetric">
+        <option value="pesos">Pesos ($)</option>
+        <option value="unidades">Unidades</option>
+        <option value="medida">Medida</option>
+      </select>
+    </div>
+    <button class="btn-reset" onclick="resetFilters()">↺ Limpiar filtros</button>
+  </div>
+
+  <!-- KPIs -->
+  <div class="kpis" id="kpis">
+    <div class="kpi"><h3>Total Ventas ($)</h3><div class="val" id="kpiPesos">—</div></div>
+    <div class="kpi"><h3>Total Unidades</h3><div class="val" id="kpiUnid">—</div></div>
+    <div class="kpi"><h3>Registros</h3><div class="val" id="kpiRows">—</div></div>
+    <div class="kpi"><h3>Regiones</h3><div class="val" id="kpiReg">—</div></div>
+  </div>
+
+  <!-- GRÁFICOS -->
+  <div class="grid">
+    <div class="card">
+      <h2>📊 Ventas por Región</h2>
+      <div class="chart-wrap"><canvas id="chartBar"></canvas></div>
+      <div class="insight" id="insBar">Carga el archivo para ver el análisis.</div>
+    </div>
+
+    <div class="card">
+      <h2>🥧 Participación por Categoría</h2>
+      <div class="chart-wrap"><canvas id="chartPie"></canvas></div>
+      <div class="insight" id="insPie">Carga el archivo para ver el análisis.</div>
+    </div>
+
+    <div class="card">
+      <h2>📈 Ventas por Línea (Áreas)</h2>
+      <div class="chart-wrap"><canvas id="chartArea"></canvas></div>
+      <div class="insight" id="insArea">Carga el archivo para ver el análisis.</div>
+    </div>
+
+    <div class="card">
+      <h2>🔵 Dispersión: Unidades vs. Pesos</h2>
+      <div class="chart-wrap"><canvas id="chartScatter"></canvas></div>
+      <div class="insight" id="insScatter">Carga el archivo para ver el análisis.</div>
+    </div>
+
+    <!-- TABLA -->
+    <div class="card table-card">
+      <h2>📋 Detalle de Datos</h2>
+      <div class="table-controls">
+        <input type="text" id="tableSearch" placeholder="🔍 Buscar en la tabla...">
+        <span id="tableCount" style="align-self:center;color:var(--muted);font-size:.85rem;"></span>
+      </div>
+      <div class="table-scroll">
+        <table id="dataTable"><thead></thead><tbody></tbody></table>
+      </div>
+      <div class="pagination">
+        <button id="prevBtn" onclick="changePage(-1)">◀ Anterior</button>
+        <span id="pageInfo">Página 0 de 0</span>
+        <button id="nextBtn" onclick="changePage(1)">Siguiente ▶</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="empty" id="emptyMsg">⬆️ Carga tu archivo de Excel para comenzar el análisis.</div>
+</div>
+
+<footer>Dashboard Swisslub · Generado con Chart.js + SheetJS · Diseño responsive</footer>
+
+<script>
+/* ============================================================
+   CONFIGURACIÓN: nombres flexibles de columnas.
+   El script intenta detectar automáticamente las columnas.
+   Ajusta las palabras clave si tu archivo usa otros nombres.
+============================================================ */
+const COL_KEYS = {
+  region:   ['region','regional','zona','departamento','ciudad'],
+  linea:    ['linea','línea','categoria','categoría','producto','marca','hdmo','pcmo','segmento'],
+  cat2:     ['subcategoria','subcategoría','familia','tipo','grupo'],
+  pesos:    ['pesos','venta','ventas','valor','importe','$'],
+  unidades: ['unidades','cantidad','cant','qty','und'],
+  medida:   ['medida','litros','galones','volumen','kg']
+};
+
+let RAW = [];        // datos completos
+let HEADERS = [];    // encabezados
+let colMap = {};     // mapeo detectado
+let filtered = [];   // datos filtrados
+let charts = {};     // instancias Chart.js
+let currentPage = 1; const PAGE_SIZE = 50;
+
+/* --- Utilidades --- */
+const fmt = n => new Intl.NumberFormat('es-CO').format(Math.round(n||0));
+const fmtMoney = n => '$'+fmt(n);
+const palette = ['#0b5394','#e69138','#27ae60','#e74c3c','#8e44ad','#16a085','#f39c12','#2980b9','#c0392b','#7f8c8d','#d35400','#2ecc71'];
+
+function detectColumns(){
+  colMap = {};
+  const lower = HEADERS.map(h => String(h).toLowerCase().trim());
+  for(const key in COL_KEYS){
+    for(let i=0;i<lower.length;i++){
+      if(COL_KEYS[key].some(kw => lower[i].includes(kw))){
+        if(!Object.values(colMap).includes(HEADERS[i])){ colMap[key]=HEADERS[i]; break; }
+      }
+    }
+  }
+  // Fallbacks
+  if(!colMap.region) colMap.region = HEADERS<a href="" class="citation-link" target="_blank" style="vertical-align: super; font-size: 0.8em; margin-left: 3px;">[0]</a>;
+  if(!colMap.linea)  colMap.linea  = HEADERS<a href="" class="citation-link" target="_blank" style="vertical-align: super; font-size: 0.8em; margin-left: 3px;">[1]</a> || HEADERS<a href="" class="citation-link" target="_blank" style="vertical-align: super; font-size: 0.8em; margin-left: 3px;">[0]</a>;
+}
+
+/* --- Lectura del archivo --- */
+document.getElementById('fileInput').addEventListener('change', e=>{
+  const file = e.target.files<a href="" class="citation-link" target="_blank" style="vertical-align: super; font-size: 0.8em; margin-left: 3px;">[0]</a>;
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = ev=>{
+    const wb = XLSX.read(new Uint8Array(ev.target.result), {type:'array'});
+    const ws = wb.Sheets[wb.SheetNames<a href="" class="citation-link" target="_blank" style="vertical-align: super; font-size: 0.8em; margin-left: 3px;">[0]</a>];
+    const json = XLSX.utils.sheet_to_json(ws, {header:1, defval:''});
+    HEADERS = json<a href="" class="citation-link" target="_blank" style="vertical-align: super; font-size: 0.8em; margin-left: 3px;">[0]</a>.map(h=>String(h).trim());
+    RAW = json.slice(1).filter(r=>r.some(c=>c!=='')).map(r=>{
+      const obj={}; HEADERS.forEach((h,i)=>obj[h]=r[i]); return obj;
+    });
+    detectColumns();
+    populateFilters();
+    document.getElementById('emptyMsg').style.display='none';
+    applyFilters();
+  };
+  reader.readAsArrayBuffer(file);
+});
+
+/* --- Poblar segmentadores --- */
+function uniqueVals(col){
+  return [...new Set(RAW.map(r=>r[col]).filter(v=>v!==''&&v!=null))].sort();
+}
+function populateFilters(){
+  fillSelect('fRegion', colMap.region);
+  fillSelect('fLinea', colMap.linea);
+  fillSelect('fCat2', colMap.cat2);
+}
+function fillSelect(id, col){
+  const sel=document.getElementById(id);
+  sel.innerHTML='<option value="">Todas</option>';
+  if(!col){ sel.disabled=true; return;} sel.disabled=false;
+  uniqueVals(col).forEach(v=>{
+    const o=document.createElement('option'); o.value=v; o.textContent=v; sel.appendChild(o);
+  });
+}
+['fRegion','fLinea','fCat2','fMetric'].forEach(id=>
+  document.getElementById(id).addEventListener('change', applyFilters));
+document.getElementById('tableSearch').addEventListener('input', ()=>{currentPage=1;renderTable();});
+
+function resetFilters(){
+  ['fRegion','fLinea','fCat2'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('tableSearch').value='';
+  applyFilters();
+}
+
+/* --- Aplicar filtros --- */
+function getNum(v){ const n=parseFloat(String(v).replace(/[^0-9.-]/g,'')); return isNaN(n)?0:n; }
+function metricCol(){
+  const m=document.getElementById('fMetric').value;
+  return colMap[m] || colMap.pesos || colMap.unidades;
+}
+function applyFilters(){
+  const reg=document.getElementById('fRegion').value;
+  const lin=document.getElementById('fLinea').value;
+  const c2=document.getElementById('fCat2').value;
+  filtered = RAW.filter(r=>
+    (!reg || r[colMap.region]==reg) &&
+    (!lin || r[colMap.linea]==lin) &&
+    (!c2  || !colMap.cat2 || r[colMap.cat2]==c2)
+  );
+  currentPage=1;
+  updateKPIs(); renderCharts(); renderTable();
+}
+
+/* --- KPIs --- */
+function updateKPIs(){
+  const pesosCol=colMap.pesos, unidCol=colMap.unidades;
+  const tp = pesosCol ? filtered.reduce((s,r)=>s+getNum(r[pesosCol]),0) : 0;
+  const tu = unidCol ? filtered.reduce((s,r)=>s+getNum(r[unidCol]),0) : 0;
+  document.getElementById('kpiPesos').textContent = pesosCol?fmtMoney(tp):'N/D';
+  document.getElementById('kpiUnid').textContent  = unidCol?fmt(tu):'N/D';
+  document.getElementById('kpiRows').textContent  = fmt(filtered.length);
+  document.getElementById('kpiReg').textContent   = new Set(filtered.map(r=>r[colMap.region])).size;
+}
+
+/* --- Agregación --- */
+function groupSum(col, valCol){
+  const map={};
+  filtered.forEach(r=>{ const k=r[col]||'(vacío)'; map[k]=(map[k]||0)+getNum(r[valCol]); });
+  return Object.entries(map).sort((a,b)=>b<a href="" class="citation-link" target="_blank" style="vertical-align: super; font-size: 0.8em; margin-left: 3px;">[1]</a>-a<a href="" class="citation-link" target="_blank" style="vertical-align: super; font-size: 0.8em; margin-left: 3px;">[1]</a>);
+}
+
+/* --- Render de gráficos --- */
+function renderCharts(){
+  const val=metricCol();
+  const isMoney = document.getElementById('fMetric').value==='pesos';
+  const tip = ctx => (isMoney?'$':'')+fmt(ctx.parsed.y ?? ctx.parsed);
+
+  // BARRAS por región
+  const byReg = groupSum(colMap.region, val).slice(0,12);
+  makeChart('chartBar','bar',{
+    labels:byReg.map(d=>d<a href="" class="citation-link" target="_blank" style="vertical-align: super; font-size: 0.8em; margin-left: 3px;">[0]</a>),
+    datasets:[{label:'Total',data:byReg.map(d=>d<a href="" class="citation-link" target="_blank" style="vertical-align: super; font-size: 0.8em; margin-left: 3px;">[1]</a>),backgroundColor:palette<a href="" class="citation-link" target="_blank" style="vertical-align: super; font-size: 0.8em; margin-left: 3px;">[0]</a>}]
+  }, tip);
+  setInsight('insBar', byReg, isMoney, 'región');
+
+  // TORTA por línea
+  const byLin = groupSum(colMap.linea, val).slice(0,10);
+  makeChart('chartPie','doughnut',{
+    labels:byLin.map(d=>d<a href="" class="citation-link" target="_blank" style="vertical-align: super; font-size: 0.8em; margin-left: 3px;">[0]</a>),
+    datasets:[{data:byLin.map(d=>d<a href="" class="citation-link" target="_blank" style="vertical-align: super; font-size: 0.8em; margin-left: 3px;">[1]</a>),backgroundColor:palette}]
+  }, ctx=>`${ctx.label}: ${(isMoney?'$':'')+fmt(ctx.parsed)}`);
+  setInsight('insPie', byLin, isMoney, 'línea/categoría');
+
+  // ÁREAS por línea
+  makeChart('chartArea','line',{
+    labels:byLin.map(d=>d<a href="" class="citation-link" target="_blank" style="vertical-align: super; font-size: 0.8em; margin-left: 3px;">[0]</a>),
+    datasets:[{label:'Total',data:byLin.map(d=>d<a href="" class="citation-link" target="_blank" style="vertical-align: super; font-size: 0.8em; margin-left: 3px;">[1]</a>),fill:true,
+      backgroundColor:'rgba(11,83,148,.2)',borderColor:palette<a href="" class="citation-link" target="_blank" style="vertical-align: super; font-size: 0.8em; margin-left: 3px;">[0]</a>,tension:.3}]
+  }, tip);
+  document.getElementById('insArea').textContent =
+    `Distribución de la métrica entre las líneas. La línea líder es "${byLin<a href="" class="citation-link" target="_blank" style="vertical-align: super; font-size: 0.8em; margin-left: 3px;">[0]</a>?.<a href="" class="citation-link" target="_blank" style="vertical-align: super; font-size: 0.8em; margin-left: 3px;">[0]</a>||'—'}".`;
+
+  // DISPERSIÓN unidades vs pesos
+  if(colMap.unidades && colMap.pesos){
+    const pts = filtered.slice(0,3000).map(r=>({x:getNum(r[colMap.unidades]),y:getNum(r[colMap.pesos])}));
+    makeChart('chartScatter','scatter',{
+      datasets:[{label:'Registros',data:pts,backgroundColor:'rgba(230,145,56,.5)'}]
+    }, ctx=>`Und: ${fmt(ctx.parsed.x)} | $${fmt(ctx.parsed.y)}`, true);
+    document.getElementById('insScatter').textContent =
+      'Cada punto es un registro. Muestra la relación entre unidades vendidas y valor en pesos.';
+  }
+}
+
+function makeChart(id,type,data,tipFn,scatter=false){
+  if(charts[id]) charts[id].destroy();
+  charts[id]=new Chart(document.getElementById(id),{
+    type, data,
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{
+        legend:{display:type!=='bar'&&type!=='scatter'&&type!=='line',position:'right',labels:{boxWidth:12,font:{size:10}}},
+        tooltip:{callbacks:{label:tipFn}}
+      },
+      scales: (type==='bar'||type==='line')?{
+        y:{ticks:{callback:v=>fmt(v)}}
+      }: scatter?{
+        x:{title:{display:true,text:'Unidades'}},
+        y:{title:{display:true,text:'Pesos'},ticks:{callback:v=>fmt(v)}}
+      }:{}
+    }
+  });
+}
+
+function setInsight(id, data, money, dim){
+  if(!data.length){document.getElementById(id).textContent='
+
+Regenerado
+Copiar mensaje
+
+
+
+
+                   
